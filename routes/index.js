@@ -1,15 +1,19 @@
-require("dotenv").config(); // environment variable
+require("dotenv").config();
+const express = require("express");
+const router = express.Router();
 
-// require packages
-const mongoose = require("mongoose");
+const { authenticateToken } = require("../middlewares/authenticateToken");
+const authController = require("../controllers/authController");
 
-
-var express = require('express');
-var router = express.Router();
-
-/* GET home page. */
-router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Express Framework' });
+// Home
+router.get("/", (req, res) => {
+    res.render("index", { title: "Express Framework" });
 });
+
+// Auth
+router.post("/login", authController.login);
+router.post("/refresh-token", authController.refreshToken);
+router.post("/logout", authController.logout);
+router.get("/me", authenticateToken, authController.getCurrentUser);
 
 module.exports = router;

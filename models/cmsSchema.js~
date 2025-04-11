@@ -1,0 +1,348 @@
+// models/ContentType.js
+const mongoose = require('mongoose');
+
+const contentTypeSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true
+    },
+    description: {
+        type: String,
+        trim: true
+    },
+    defaultTemplate: {
+        type: String,
+        default: 'default'
+    },
+    supportsComments: {
+        type: Boolean,
+        default: true
+    },
+    supportsSticky: {
+        type: Boolean,
+        default: false
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+module.exports = mongoose.model('ContentType', contentTypeSchema);
+
+// models/Media.js
+const mongoose = require('mongoose');
+
+const mediaSchema = new mongoose.Schema({
+    fileName: {
+        type: String,
+        required: true
+    },
+    filePath: {
+        type: String,
+        required: true
+    },
+    fileType: {
+        type: String,
+        required: true,
+        enum: ['image', 'video', 'document', 'audio', 'other']
+    },
+    mimeType: {
+        type: String,
+        required: true
+    },
+    fileSize: {
+        type: Number,
+        required: true
+    },
+    altText: String,
+    title: String,
+    description: String,
+    uploadedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+module.exports = mongoose.model('Media', mediaSchema);
+
+// models/Category.js
+const mongoose = require('mongoose');
+
+const categorySchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    slug: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        lowercase: true
+    },
+    description: String,
+    parent: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        default: null
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+module.exports = mongoose.model('Category', categorySchema);
+
+// models/Tag.js
+const mongoose = require('mongoose');
+
+const tagSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    slug: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        lowercase: true
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+module.exports = mongoose.model('Tag', tagSchema);
+
+// models/ContentItem.js
+const mongoose = require('mongoose');
+const slugify = require('slugify'); // You'll need to install this package
+
+const contentItemSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    slug: {
+        type: String,
+        unique: true,
+        trim: true,
+        lowercase: true
+    },
+    status: {
+        type: String,
+        enum: ['draft', 'published', 'archived'],
+        default: 'draft'
+    },
+    author: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    publishedAt: Date,
+    contentType: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ContentType',
+        required: true
+    },
+    visibility: {
+        type: String,
+        enum: ['public', 'private', 'password_protected'],
+        default: 'public'
+    },
+    sortOrder: {
+        type: Number,
+        default: 0
+    },
+    // Content Details
+    content: {
+        type: String
+    },
+    excerpt: {
+        type: String
+    },
+    // Media Relations
+    mediaRelations: [
+        {
+            media: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Media'
+            },
+            relationshipType: {
+                type: String,
+                required: true,
+                enum: ['featured', 'gallery', 'attachment']
+            },
+            sortOrder: {
+                type: Number,
+                default: 0
+            }
+        }
+    ],
+    // Settings
+    settings: {
+        type: Map,
+        of: mongoose.Schema.Types.Mixed,
+        default: {}
+    },
+    // Categories and Tags
+    categories: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category'
+        }
+    ],
+    tags: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Tag'
+        }
+    ],
+    // Timestamps
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+// Pre-save hook to generate slug from title if not provided
+contentItemSchema.pre('save', function(next) {
+    if (!this.slug && this.title) {
+        this.slug = slugify(this.title, { lower: true, strict: true });
+    }
+    this.updatedAt = Date.now();
+    next();
+});
+
+// Method to check if content has a featured image
+contentItemSchema.methods.getFeaturedImage = function() {
+    const featuredMedia = this.mediaRelations.find(rel => rel.relationshipType === 'featured');
+    return featuredMedia ? featuredMedia.media : null;
+};
+
+// Method to get content setting with default fallback
+contentItemSchema.methods.getSetting = function(key, defaultValue = null) {
+    return this.settings.has(key) ? this.settings.get(key) : defaultValue;
+};
+
+// Static method to find content by type
+contentItemSchema.statics.findByType = async function(typeName) {
+    const contentType = await mongoose.model('ContentType').findOne({ name: typeName });
+    if (!contentType) return [];
+    return this.find({ contentType: contentType._id });
+};
+
+module.exports = mongoose.model('ContentItem', contentItemSchema);
+
+// models/Comment.js
+const mongoose = require('mongoose');
+
+const commentSchema = new mongoose.Schema({
+    contentItem: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ContentItem',
+        required: true
+    },
+    authorName: {
+        type: String,
+        required: true
+    },
+    authorEmail: {
+        type: String,
+        required: true
+    },
+    authorUrl: String,
+    authorIp: String,
+    content: {
+        type: String,
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'approved', 'spam'],
+        default: 'pending'
+    },
+    parent: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Comment',
+        default: null
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+module.exports = mongoose.model('Comment', commentSchema);
+
+// models/CustomField.js
+const mongoose = require('mongoose');
+
+const customFieldSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    fieldType: {
+        type: String,
+        required: true,
+        enum: ['text', 'number', 'boolean', 'select', 'date', 'image', 'rich_text']
+    },
+    options: {
+        type: mongoose.Schema.Types.Mixed // For select options, stored as an array or object
+    },
+    defaultValue: mongoose.Schema.Types.Mixed,
+    isRequired: {
+        type: Boolean,
+        default: false
+    },
+    postTypes: {
+        type: [String], // Array of content type names this field applies to
+        default: []
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+module.exports = mongoose.model('CustomField', customFieldSchema);
+
+// models/ContentCustomField.js
+const mongoose = require('mongoose');
+
+const contentCustomFieldSchema = new mongoose.Schema({
+    contentItem: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ContentItem',
+        required: true
+    },
+    field: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CustomField',
+        required: true
+    },
+    fieldValue: mongoose.Schema.Types.Mixed
+});
+
+// Compound index for uniqueness
+contentCustomFieldSchema.index({ contentItem: 1, field: 1 }, { unique: true });
+
+module.exports = mongoose.model('ContentCustomField', contentCustomFieldSchema);

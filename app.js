@@ -15,6 +15,7 @@ const cors = require('cors');
 // Import route handlers
 const indexRouter = require('./routes/index');
 const genericRouter = require('./routes/genericRoutes');
+const cmsRouter = require('./routes/cmsRoutes');
 const authenticateToken = require('./middlewares/authenticateToken');
 
 // Initialize Express app
@@ -60,6 +61,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
 app.use('/', indexRouter);
+app.use('/cms', cmsRouter); // Apply auth middleware before the route handler
 app.use('/crud', genericRouter); // Apply auth middleware before the route handler
 
 // Error handling

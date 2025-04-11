@@ -1,0 +1,77 @@
+// routes/cmsRoutes.js
+const express = require('express');
+const router = express.Router();
+const {authenticateToken} = require('../middlewares/authenticateToken');
+
+// Import models
+const {
+    ContentType,
+    ContentItem,
+    Media,
+    Category,
+    Tag,
+    Comment
+} = require('../models/cmsSchema');
+
+// Import validators
+const contentTypeValidator = require('../validators/contentTypeValidator');
+const contentItemValidator = require('../validators/contentItemValidator');
+const mediaValidator = require('../validators/mediaValidator');
+const categoryValidator = require('../validators/categoryValidator');
+const tagValidator = require('../validators/tagValidator');
+const commentValidator = require('../validators/commentValidator');
+
+// Import services
+const genericService = require('../services/genericService');
+const contentItemService = require('../services/contentItemService')(ContentItem, ContentType);
+
+// Import controllers
+const genericController = require('../controllers/genericController');
+const cmsController = require('../controllers/cmsController');
+
+// Create controllers
+const contentTypeController = genericController(genericService(ContentType), contentTypeValidator);
+const contentItemController = cmsController(contentItemService, contentItemValidator);
+const mediaController = genericController(genericService(Media), mediaValidator);
+const categoryController = genericController(genericService(Category), categoryValidator);
+const tagController = genericController(genericService(Tag), tagValidator);
+const commentController = genericController(genericService(Comment), commentValidator);
+
+// Define routes
+const routes = [
+    {route: 'content-types', controller: contentTypeController},
+    {route: 'content', controller: contentItemController},
+    {route: 'media', controller: mediaController},
+    {route: 'categories', controller: categoryController},
+    {route: 'tags', controller: tagController},
+    {route: 'comments', controller: commentController}
+];
+
+// Set up generic CRUD routes
+routes.forEach((item) => {
+    router.post(`/${item.route}/`, authenticateToken, item.controller.create);
+    router.get(`/${item.route}/`, authenticateToken, item.controller.getAll);
+    router.get(`/${item.route}/:id`, authenticateToken, item.controller.getById);
+    router.put(`/${item.route}/:id`, authenticateToken, item.controller.update);
+    router.delete(`/${item.route}/:id`, authenticateToken, item.controller.remove);
+});
+
+// Special routes for content items
+router.get('/content/type/:typeName', authenticateToken, contentItemController.getByType);
+router.get('/public/content', contentItemController.getPublished); // Public route - no auth needed
+router.post('/content/:id/media', authenticateToken, contentItemController.addMedia);
+router.delete('/content/:id/media/:mediaId/relationship/:relationshipType?', authenticateToken, contentItemController.removeMedia);
+router.put('/content/:id/settings', authenticateToken, contentItemController.updateSettings);
+
+// Special routes for content types
+router.get('/public/content-types', async (req, res) => {
+    try {
+        const contentTypes = await ContentType.find();
+        res.json(contentTypes);
+    } catch (err) {
+        res.status(500).json({error: 'Fetch failed'});
+    }
+});
+
+// Export router
+module.exports = router;
